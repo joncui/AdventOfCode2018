@@ -16,10 +16,12 @@ func check(e error) {
 }
 
 func main() {
-	file := os.Args[1]
-	fmt.Printf(file)
+	file := "data"
+	if len(os.Args) > 1 {
+		file = os.Args[1]
+	}
 
-	rawData, err := ioutil.ReadFile("data")
+	rawData, err := ioutil.ReadFile(file)
 	check(err)
 
 	frequencyChanges := strings.Split(strings.TrimSuffix(string(rawData), "\n"), "\n")
