@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+type Queue struct {
+	queue *list.List
+}
+
 func check(e error) {
 	if e != nil {
 		log.Fatal(e)
@@ -50,86 +54,80 @@ func main() {
 		}
 	}
 
-	queue := list.New()
-	initQueue(queue, rootMap)
+	queue := Queue{list.New()}
 
-	fmt.Printf("The order the instructions should be completed is \"%v\".\n", part1(queue, parentMap, childrenMap))
+	// queue.initQueue(rootMap)
+	// fmt.Printf("The order the instructions should be completed is \"%v\".\n", part1(queue, parentMap, childrenMap))
 
-	initQueue(queue, rootMap)
+	queue.initQueue(rootMap)
 	fmt.Println(part2(queue, parentMap, childrenMap))
 }
 
-func part1(queue *list.List, parentMap, childrenMap map[string][]string) string {
+func part1(q Queue, parentMap, childrenMap map[string][]string) string {
 	var instructionOrder []string
-	for first := queue.Front(); first != nil; first = queue.Front() {
+	for first := q.queue.Front(); first != nil; first = q.queue.Front() {
 		orderLetter := first.Value.(string)
 		instructionOrder = append(instructionOrder, orderLetter)
-		nextSteps := parentMap[orderLetter]
 
-		for _, child := range nextSteps {
-			parents := childrenMap[child]
-			for i, parent := range parents {
-				if parent == orderLetter {
-					parents = append(parents[0:i], parents[i+1:]...)
+		for _, child := range parentMap[orderLetter] {
+			allParentsVisited := true
+			for _, parent := range childrenMap[child] {
+				if !includes(instructionOrder, parent) {
+					allParentsVisited = false
+					break
 				}
 			}
 
-			if len(parents) == 0 {
-				insertNode(queue, child)
+			if allParentsVisited {
+				q.insertNode(child)
 			}
-
-			childrenMap[child] = parents
 		}
 
-		queue.Remove(first)
+		q.queue.Remove(first)
 	}
 
 	return strings.Join(instructionOrder, "")
 }
 
-func part2(queue *list.List, parentMap, childrenMap map[string][]string) (time int) {
-	var workers []int
-	for time = 0; ; {
-		updateAllWorkers(&workers, -1)
+func part2(q Queue, parentMap, childrenMap map[string][]string) (time int) {
+	workers := InitWorkers()
+	var instructionOrder []string
+	for len(instructionOrder) != 26 {
+		availableWorkersIndex := GetAvailableWorkersIndex(&workers)
 
-		if queue.Len() == 0 || len(workers) == 5 {
-			continue
+		for _, i := range availableWorkersIndex {
+			if q.len() != 0 {
+				nextTask := q.pop()
+				workers[i].SetTask(nextTask)
+			}
 		}
 
-		if queue.Len() == 0 && len(workers) == 0 {
-			break
+		minWorkerTime := GetMinWorkerTime(&workers)
+		UpdateAllWorkers(&workers, minWorkerTime)
+
+		for i := 0; i < 5; i++ {
+			if workers[i].done {
+				instructionOrder = append(instructionOrder, workers[i].task)
+				for _, child := range parentMap[workers[i].task] {
+					allParentsVisited := true
+					for _, parent := range childrenMap[child] {
+						if !includes(instructionOrder, parent) {
+							allParentsVisited = false
+							break
+						}
+					}
+
+					if allParentsVisited {
+						q.insertNode(child)
+					}
+				}
+
+				workers[i].done = false
+			}
 		}
 
-		for letter := queue.Front(); len(workers) < 5 && queue.Len() > 0; letter = letter.Next() {
-			workers = append(workers, strToTime(letter.Value.(string)))
-		}
-
-		minTime := getMinWorkerTime(&workers)
-		time += minTime
-		updateAllWorkers(&workers, minTime*-1)
-
+		time += minWorkerTime
 	}
-	// for first := queue.Front(); first != nil; first = queue.Front() {
-	//	orderLetter := first.Value.(string)
-	//	nextSteps := parentMap[orderLetter]
-
-	//	for _, child := range nextSteps {
-	//		parents := childrenMap[child]
-	//		for i, parent := range parents {
-	//			if parent == orderLetter {
-	//				parents = append(parents[0:i], parents[i+1:]...)
-	//			}
-	//		}
-
-	//		if len(parents) == 0 {
-	//			insertNode(queue, child)
-	//		}
-
-	//		childrenMap[child] = parents
-	//	}
-
-	//	queue.Remove(first)
-	// }
 
 	return
 }
@@ -145,49 +143,78 @@ func insertToMap(theMap *(map[string][]string), key, value string) {
 	(*theMap)[key] = node
 }
 
-func initQueue(queue *list.List, theMap map[string]bool) {
+func (q *Queue) initQueue(theMap map[string]bool) {
 	for key := range theMap {
-		insertNode(queue, key)
+		q.insertNode(key)
 	}
 
 	return
 }
 
-func insertNode(queue *list.List, step string) {
-	if queue.Len() == 0 {
-		queue.PushBack(step)
+func (q *Queue) insertNode(step string) {
+	if q.len() == 0 {
+		q.queue.PushBack(step)
 		return
 	}
 
-	if queue.Front().Value.(string) > step {
-		queue.PushFront(step)
+	if q.queue.Front().Value.(string) > step {
+		q.queue.PushFront(step)
 		return
 	}
 
-	for start := queue.Front(); start != nil; start = start.Next() {
+	for start := q.queue.Front(); start != nil; start = start.Next() {
 		value := start.Value.(string)
 		if value == step {
 			return
 		} else if value > step {
-			queue.InsertBefore(step, start)
+			q.queue.InsertBefore(step, start)
 			return
 		}
 	}
 
-	queue.PushBack(step)
+	q.queue.PushBack(step)
 }
 
-func removeNode(queue *list.List, step string) {
-	if queue.Len() == 0 {
+func (q *Queue) removeNode(step string) {
+	if q.len() == 0 {
 		return
 	}
 
-	for start := queue.Front(); start != nil; start = start.Next() {
+	for start := q.queue.Front(); start != nil; start = start.Next() {
 		if start.Value.(string) == step {
-			queue.Remove(start)
+			q.queue.Remove(start)
 			return
 		}
 	}
+}
+
+func (q *Queue) pop() string {
+	if q.len() == 0 {
+		return ""
+	}
+
+	first := q.queue.Front()
+	q.queue.Remove(first)
+
+	return first.Value.(string)
+}
+
+func (q *Queue) len() int {
+	return q.queue.Len()
+}
+
+func includes(arr []string, value string) bool {
+	if value == "" || len(arr) == 0 {
+		return false
+	}
+
+	for _, e := range arr {
+		if e == value {
+			return true
+		}
+	}
+
+	return false
 }
 
 func printQueue(queue *list.List) {
@@ -197,37 +224,4 @@ func printQueue(queue *list.List) {
 	}
 
 	fmt.Println()
-}
-
-func strToTime(str string) int {
-	return int(str[0] - 64)
-}
-
-func updateAllWorkers(workers *[]int, amount int) {
-	for i, time := range *workers {
-		if time += amount; time == 0 {
-			*workers = append((*workers)[:i], (*workers)[i+1:]...)
-		}
-	}
-}
-
-func getMinWorkerTime(workers *[]int) (minTime int) {
-	minTime = 100
-	for _, time := range *workers {
-		if time < 100 {
-			minTime = time
-		}
-	}
-
-	return
-}
-
-func allWorkersBusy(workers *[]int) bool {
-	for _, time := range *workers {
-		if time == 0 {
-			return false
-		}
-	}
-
-	return true
 }
