@@ -89,6 +89,8 @@ func part1(stars []Star) {
 		}
 	}
 
+	fmt.Printf("They need to wait %d seconds for the message to appear.\n", smallestI)
+
 	minX, maxX, minY, maxY := 0, 0, 0, 0
 	for j := 0; j < len(stars); j++ {
 		x := stars[j].posX + (stars[j].vX * smallestI)
@@ -128,8 +130,9 @@ func initMapper(minX, maxX, minY, maxY int) [][]bool {
 }
 
 func printMap(mapper [][]bool) {
-	for y := 0; y < len(mapper); y++ {
-		for x := 0; x < len(mapper[0]); x++ {
+	fmt.Printf("This message will eventually appear in the sky:\n\n")
+	for y := 148; y < len(mapper); y++ {
+		for x := 110; x < len(mapper[0]); x++ {
 			if mapper[y][x] {
 				fmt.Print("#")
 			} else {
@@ -139,5 +142,4 @@ func printMap(mapper [][]bool) {
 
 		fmt.Println()
 	}
-	fmt.Println()
 }
